@@ -30,39 +30,79 @@ parse_dates = [
 
 
 @click.command()
-@click.option("--csv-path", default=None, help="Path or URL to the CSV file to ingest. If omitted, reads from stdin.")
+@click.option(
+    "--file-path",
+    required=True,
+    help="Path to CSV or Parquet file"
+)
 @click.option("--pg-user", default="root", help="Postgres user")
 @click.option("--pg-pass", default="root", help="Postgres password")
 @click.option("--pg-host", default="localhost", help="Postgres host")
 @click.option("--pg-port", default=5432, type=int, help="Postgres port")
 @click.option("--pg-db", default="ny_taxi", help="Postgres database name")
-@click.option("--target-table", default="yellow_taxi_trips", help="Target table name in Postgres")
-@click.option("--chunksize", default=100000, type=int, help="Number of rows per chunk when reading CSV")
-def main(csv_path, pg_user, pg_pass, pg_host, pg_port, pg_db, target_table, chunksize):
-    """Simple CSV -> Postgres ingestion using pandas and SQLAlchemy.
+@click.option(
+    "--target-table",
+    default="yellow_taxi_trips",
+    help="Target table name"
+)
+@click.option(
+    "--chunksize",
+    default=100000,
+    type=int,
+    help="CSV chunk size"
+)
+def main(
+    file_path,
+    pg_user,
+    pg_pass,
+    pg_host,
+    pg_port,
+    pg_db,
+    target_table,
+    chunksize,
+):
 
-    Example:
-      python ingest_data.py --csv-path data.csv --pg-user root --pg-pass root --pg-host localhost \
-          --pg-port 5432 --pg-db ny_taxi --target-table yellow_taxi_trips
-    """
+    url = (
+        f"postgresql://{pg_user}:{pg_pass}"
+        f"@{pg_host}:{pg_port}/{pg_db}"
+    )
 
-    engine = None
-    if pg_host and pg_db:
-        url = f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
-        try:
-            engine = create_engine(url)
-        except Exception as exc:
-            click.echo(f"Warning: could not create engine: {exc}")
+    engine = create_engine(url)
 
-    if csv_path:
-        reader = pd.read_csv(csv_path, dtype=dtype, parse_dates=parse_dates, chunksize=chunksize)
-    else:
-        # read from stdin
-        reader = pd.read_csv(click.open_file("-"), dtype=dtype, parse_dates=parse_dates, chunksize=chunksize)
+    # PARQUET FILES
+    if file_path.endswith(".parquet"):
+
+        click.echo("Reading parquet file...")
+
+        df = pd.read_parquet(file_path)
+
+        click.echo(
+            f"Loading {len(df):,} rows into {target_table}..."
+        )
+
+        df.to_sql(
+            name=target_table,
+            con=engine,
+            if_exists="replace",
+            index=False,
+            chunksize=10000,
+        )
+
+        click.echo("Done!")
+        return
+
+    # CSV FILES
+    reader = pd.read_csv(
+        file_path,
+        dtype=dtype,
+        parse_dates=parse_dates,
+        chunksize=chunksize,
+    )
 
     first_chunk = True
+
     for chunk in tqdm(reader, desc="ingest"):
-        # ensure dtypes for nullable ints
+
         for col, col_dtype in dtype.items():
             if col in chunk.columns:
                 try:
@@ -70,19 +110,16 @@ def main(csv_path, pg_user, pg_pass, pg_host, pg_port, pg_db, target_table, chun
                 except Exception:
                     pass
 
-        if engine is not None:
-            try:
-                chunk.to_sql(name=target_table, con=engine, if_exists=("replace" if first_chunk else "append"), index=False)
-            except Exception as exc:
-                click.echo(f"Error writing chunk to Postgres: {exc}")
-                raise
-        else:
-            # fallback: write to parquet files locally
-            out_name = f"{target_table}_{int(pd.Timestamp.now().timestamp())}.parquet"
-            chunk.to_parquet(out_name)
-            click.echo(f"Wrote chunk to {out_name}")
+        chunk.to_sql(
+            name=target_table,
+            con=engine,
+            if_exists="replace" if first_chunk else "append",
+            index=False,
+        )
 
         first_chunk = False
+
+    click.echo("Done!")
 
 
 if __name__ == "__main__":
