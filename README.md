@@ -67,7 +67,7 @@ pytest -q
 
 ## Working with volumes and persisted data
 
-- The examples above mount the current repository into `/app` inside the container using `-v "$PWD":/app`. This makes your local files available to the container and lets you edit code on the host while running it in Docker.
+- The examples above mount the current repository into `/app` inside the container using `-v "$PWD":/app`. This makes your local files available to the container and lets you edit code on the host whi[...]
 - To persist data produced by the container, use named volumes or bind mounts to a host directory.
 
 ## Environment variables and configuration
@@ -107,6 +107,7 @@ docker-compose down
 
 - The repo primarily contains Python code. Look in the repository root and the `test/` directory for runnable scripts and tests.
 - `pipeline/` and `terraform-local/` appear to contain infrastructure or CI-related examples — check those directories for README or usage notes specific to them.
+- See the ny_taxi_models README for the NYC Taxi pipeline details: [ny_taxi_models/README2.md](./ny_taxi_models/README2.md)
 
 ## Troubleshooting
 
