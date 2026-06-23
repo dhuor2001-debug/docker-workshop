@@ -1,77 +1,94 @@
-End-to-End Local Modern Data Stack: NYC Taxi Data Pipeline
+# End-to-End Local Modern Data Stack — NYC Taxi Pipeline
 Author: Abraham Makur Dhuor
 
-Project Overview
-This project demonstrates a fully functional, containerized Modern Data Stack running entirely in a local environment. It automates the extraction of raw NYC Yellow Taxi trip data, loads it into a PostgreSQL data warehouse, performs SQL-based transformations to generate business-ready metrics, and connects to a Business Intelligence tool for interactive dashboarding.
+## Project summary
+This repository demonstrates a fully containerized Modern Data Stack that runs locally. The pipeline ingests NYC Yellow Taxi trip Parquet files, loads raw data into a PostgreSQL warehouse, transforms the data with dbt to produce analytics-ready models, and exposes results for BI consumption (Power BI). The entire workflow is orchestrated with Kestra so each step runs isolated inside Docker while sharing the same Docker network.
 
-The entire pipeline is orchestrated using Kestra, ensuring isolated execution and dependency management via Docker networks.
+## Architecture & tech stack
+- Orchestration: Kestra (runs containerized tasks)
+- Ingestion: Python (pandas, pyarrow, SQLAlchemy)
+- Warehouse: PostgreSQL
+- Transformations: dbt (Postgres adapter)
+- BI: Power BI (desktop/dashboard)
+- Containers: python:3.9, dbt-postgres, postgres, etc.
 
-Architecture & Tech Stack
-Orchestration: Kestra (Docker-based execution)
+## Repository layout
+Assumes files are mounted into Kestra under a consistent namespace so dbt and Python can access them.
 
-Data Ingestion: Python (Pandas, SQLAlchemy, PyArrow)
-
-Data Warehouse: PostgreSQL
-
-Data Transformation: dbt (Data Build Tool)
-
-Business Intelligence: Power BI
-
-Repository File Structure
-The project relies on a specific file directory structure mounted within Kestra to ensure dbt and Python execute correctly:
-
-Plaintext
-local.data.warehouse (Kestra Namespace)
-│
-├── ny_taxi_models/                # dbt Project Root
+local.data.warehouse (Kestra namespace)
+├── ny_taxi_models/                # dbt project root
 │   ├── models/
-│   │   ├── stg_taxi_trips.sql         # Base view of raw data
-│   │   ├── core_passenger_revenue.sql # Aggregated revenue metrics
-│   │   └── mrt_trip_performance.sql   # Advanced tipping & trip volume metrics
-│   ├── dbt_project.yml            # dbt configuration and materialization rules
+│   │   ├── stg_taxi_trips.sql         # staging view over raw table
+│   │   ├── core_passenger_revenue.sql # passenger-level revenue aggregates
+│   │   └── mrt_trip_performance.sql   # tipping & trip-volume metrics
+│   ├── dbt_project.yml            # dbt project configuration
 │   └── .gitignore
-│
 ├── profiles.yml                   # dbt connection credentials for Postgres
-└── ingest_data.py                 # Python script for database loading
-Pipeline Stages
-1. Extract & Load (Python Ingestion)
-The pipeline begins by spinning up a python:3.9 container. It utilizes a shell command to download a raw .parquet file directly from the TLC Trip Record Data cloudfront distribution.
-Once downloaded, the ingest_data.py script utilizes pandas and sqlalchemy to efficiently chunk and load the Parquet data into a yellow_taxi_trips_automated table inside the PostgreSQL warehouse.
+└── ingest_data.py                 # Python script that downloads and loads Parquet data
+
+## Pipeline stages
+
+1. Extract & Load (Python)
+- A python:3.9 container downloads a Parquet file from the TLC Trip Record Data distribution and streams it into the `ingest_data.py` loader.
+- The loader uses pandas + SQLAlchemy to chunk and write data into `yellow_taxi_trips_automated` in Postgres, handling types with pyarrow where appropriate.
 
 2. Transform (dbt)
-Following successful ingestion, a dbt-postgres container is triggered. It connects to the database using profiles.yml and executes the models located in the ny_taxi_models directory:
+- A dbt-postgres container connects to the local Postgres using `profiles.yml`.
+- Staging model `stg_taxi_trips` casts and normalizes raw fields.
+- Downstream models (`core_passenger_revenue`, `mrt_trip_performance`) compute aggregated metrics:
+  - total_trips, total_revenue, average_tip, average_tip_pct grouped by passenger_count and other dimensions.
+- Models are materialized as tables in the `public` schema for BI consumption.
 
-Data Type Casting: Strict enforcement of NUMERIC types to prevent floating-point calculation errors during aggregation.
+3. Orchestration (Kestra)
+- A YAML flow defines sequential shell tasks that run the ingestion, run dbt, and optionally run checks. Each task runs its own container but joins a shared Docker network (e.g., `pg-network`) so containers can reach Postgres at `host=postgres` (or `localhost` when mapped).
 
-Aggregations: Calculates total trips, average tip amounts, total revenue, and average tip percentages grouped by passenger count.
+## Visualization & dashboards
+The dbt tables are built to be loaded directly into Power BI Desktop. Connection settings used during development:
+- Host: localhost
+- Port: 5432
+- Database: ny_taxi
+- Credentials: provided through local Docker environment variables or the mounted `profiles.yml` (for dbt).
 
-Materialization: Outputs clean, analytics-ready tables (core_passenger_revenue, mrt_trip_performance) directly into the public schema.
+Key dashboard insights to build:
+- Average Tip % by Passenger Count — highlights generosity by group size (use "Don't summarize" for pre-aggregated values in Power BI).
+- Trip Volume Curves — total trips by passenger_count and time-of-day.
+- Revenue summaries and tipping behavior across boroughs / time windows.
 
-3. Orchestration (Kestra Flow)
-The execution logic is defined in a declarative YAML flow. It utilizes Kestra's io.kestra.plugin.scripts.shell.Commands to run consecutive Docker containers on the same pg-network as the database, ensuring seamless inter-container communication.
+## Screenshots (descriptions)
+Below are the images included in this folder with plain-language descriptions you can use as alt text or captions.
 
-Visualization Setup
-The output tables are designed for seamless integration with downstream BI tools.
+1. image.png
+   - Caption: Power BI overview dashboard.
+   - Description: A landing view with KPI cards (Total Trips, Total Revenue, Average Tip %) at the top and a time series chart below showing trip volume over time. Filters (date range, passenger_count) appear on the left. This screen is intended to show executive-level metrics and quick filters.
 
-Connection Parameters:
+2. image-1.png
+   - Caption: Average Tip % by Passenger Count.
+   - Description: A bar chart comparing average tip percentage for each passenger_count (1, 2, 3, 4+). The visualization emphasizes that the metric is calculated in dbt and should not be re-aggregated by Power BI; the "Don't summarize" rule is applied to preserve pre-computed averages.
 
-Host: localhost
+3. image-2.png
+   - Caption: Trip volume curves by passenger count.
+   - Description: A multi-series line or area chart that maps total_trips across time with separate series for passenger_count buckets. Useful to spot peaks in demand and compare utilization across group sizes.
 
-Port: 5432
+4. image-3.png
+   - Caption: dbt model graph and run preview.
+   - Description: dbt Cloud/Desktop or CLI results showing the model graph (staging → core models) and a small preview of the `core_passenger_revenue` table (column names, sample row counts). This screenshot demonstrates successful model runs and lineage between staging and marts.
 
-Database: ny_taxi
+5. image-4.png
+   - Caption: Raw table preview in Postgres / ingestion verification.
+   - Description: A table preview (from pgAdmin/psql or a data preview tool) showing `yellow_taxi_trips_automated` with sample rows and key columns (pickup_datetime, dropoff_datetime, passenger_count, fare_amount, tip_amount). This verifies successful ingestion and correct schemas.
 
-Credentials: Managed via local Docker environment variables.
+## Quick run notes
+- Ingest:
+  - Run the loader container or run locally: `python ingest_data.py --file <path-to-parquet> --db-url "postgresql://user:pass@localhost:5432/ny_taxi"`
+- dbt:
+  - From the `ny_taxi_models` directory: `dbt run --profiles-dir ..`
+- Kestra:
+  - Deploy the flow YAML in Kestra and trigger the execution (flows run containers that call the ingestion and dbt tasks).
 
-Key Dashboard Insights:
-The Power BI dashboard visualizes the finalized dbt models, highlighting trends such as:
+## Tips & troubleshooting
+- Ensure the Postgres container is reachable on the same Docker network as ingestion/dbt containers.
+- Use NUMERIC types in dbt models for monetary columns to avoid floating-point rounding issues.
+- When connecting Power BI to the dbt-built tables, disable automatic aggregation on pre-computed metrics.
 
-Average Tip % by Passenger Count: Identifies which group sizes are the most generous (utilizing the "Don't summarize" rule in Power BI to preserve dbt's pre-aggregated math).
-
-Trip Volume Curves: Maps total_trips against passenger_count to identify peak vehicle utilization.
-
-![alt text](image.png)
-![alt text](image-1.png)
-![alt text](image-2.png)
-![alt text](image-3.png)
-![alt text](image-4.png)
+## Contact
+For questions about the pipeline, reach out to the author listed at the top.
