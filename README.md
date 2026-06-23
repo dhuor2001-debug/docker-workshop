@@ -107,7 +107,7 @@ docker-compose down
 
 - The repo primarily contains Python code. Look in the repository root and the `test/` directory for runnable scripts and tests.
 - `pipeline/` and `terraform-local/` appear to contain infrastructure or CI-related examples — check those directories for README or usage notes specific to them.
-- See the ny_taxi_models README for the NYC Taxi pipeline details: [ny_taxi_models/README2.md](./ny_taxi_models/README2.md)
+- See the ny_taxi_models README for the NYC Taxi pipeline details: [ny_taxi_models/README.md](./ny_taxi_models/README.md)
 
 ## Troubleshooting
 
