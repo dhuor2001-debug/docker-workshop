@@ -2,7 +2,7 @@
 Author: Abraham Makur Dhuor
 
 ## Project summary
-This repository demonstrates a fully containerized Modern Data Stack that runs locally. The pipeline ingests NYC Yellow Taxi trip Parquet files, loads raw data into a PostgreSQL warehouse, transforms the data with dbt to produce analytics-ready models, and exposes results for BI consumption (Power BI). The entire workflow is orchestrated with Kestra so each step runs isolated inside Docker while sharing the same Docker network.
+This repository demonstrates a fully containerized Modern Data Stack that runs locally. The pipeline ingests NYC Yellow Taxi trip Parquet files, loads raw data into a PostgreSQL warehouse, transforms [...]
 
 ## Architecture & tech stack
 - Orchestration: Kestra (runs containerized tasks)
@@ -40,7 +40,7 @@ local.data.warehouse (Kestra namespace)
 - Models are materialized as tables in the `public` schema for BI consumption.
 
 3. Orchestration (Kestra)
-- A YAML flow defines sequential shell tasks that run the ingestion, run dbt, and optionally run checks. Each task runs its own container but joins a shared Docker network (e.g., `pg-network`) so containers can reach Postgres at `host=postgres` (or `localhost` when mapped).
+- A YAML flow defines sequential shell tasks that run the ingestion, run dbt, and optionally run checks. Each task runs its own container but joins a shared Docker network (e.g., `pg-network`) so cont[...]
 
 ## Visualization & dashboards
 The dbt tables are built to be loaded directly into Power BI Desktop. Connection settings used during development:
@@ -54,28 +54,57 @@ Key dashboard insights to build:
 - Trip Volume Curves — total trips by passenger_count and time-of-day.
 - Revenue summaries and tipping behavior across boroughs / time windows.
 
-## Screenshots (descriptions)
-Below are the images included in this folder with plain-language descriptions you can use as alt text or captions.
+## Screenshots (images + descriptions)
 
-1. image.png
-   - Caption: Power BI overview dashboard.
-   - Description: A landing view with KPI cards (Total Trips, Total Revenue, Average Tip %) at the top and a time series chart below showing trip volume over time. Filters (date range, passenger_count) appear on the left. This screen is intended to show executive-level metrics and quick filters.
+Below are the images included in this folder with captions and plain-language descriptions you can use as alt text.
 
-2. image-1.png
-   - Caption: Average Tip % by Passenger Count.
-   - Description: A bar chart comparing average tip percentage for each passenger_count (1, 2, 3, 4+). The visualization emphasizes that the metric is calculated in dbt and should not be re-aggregated by Power BI; the "Don't summarize" rule is applied to preserve pre-computed averages.
+### Figure 1 — Power BI overview dashboard
 
-3. image-2.png
-   - Caption: Trip volume curves by passenger count.
-   - Description: A multi-series line or area chart that maps total_trips across time with separate series for passenger_count buckets. Useful to spot peaks in demand and compare utilization across group sizes.
+![Power BI overview dashboard](./image.png)
 
-4. image-3.png
-   - Caption: dbt model graph and run preview.
-   - Description: dbt Cloud/Desktop or CLI results showing the model graph (staging → core models) and a small preview of the `core_passenger_revenue` table (column names, sample row counts). This screenshot demonstrates successful model runs and lineage between staging and marts.
+**Caption:** Power BI overview dashboard.
 
-5. image-4.png
-   - Caption: Raw table preview in Postgres / ingestion verification.
-   - Description: A table preview (from pgAdmin/psql or a data preview tool) showing `yellow_taxi_trips_automated` with sample rows and key columns (pickup_datetime, dropoff_datetime, passenger_count, fare_amount, tip_amount). This verifies successful ingestion and correct schemas.
+**Description:** A landing view with KPI cards at the top (Total Trips, Total Revenue, Average Tip %) and a time series chart below showing trip volume over time. Filters such as date range and passenger_count are shown on the side. This image demonstrates the overall dashboard layout and where users can find high-level metrics.
+
+---
+
+### Figure 2 — Average Tip % by Passenger Count
+
+![Average Tip % by Passenger Count](./image-1.png)
+
+**Caption:** Average Tip % by Passenger Count.
+
+**Description:** A bar chart comparing average tip percentage for each passenger_count (1, 2, 3, 4+). The chart emphasizes that the metric is pre-computed in dbt (do not re-aggregate in Power BI). Bars include data labels and an x-axis for passenger_count buckets.
+
+---
+
+### Figure 3 — Trip volume curves by passenger count
+
+![Trip volume curves by passenger count](./image-2.png)
+
+**Caption:** Trip volume curves by passenger count.
+
+**Description:** A multi-series line/area chart mapping total_trips across time with separate series for passenger_count buckets. Useful to spot demand peaks and compare utilization across passenger groups. Time-of-day patterns and legend for buckets are visible.
+
+---
+
+### Figure 4 — dbt model graph and run preview
+
+![dbt model graph and run preview](./image-3.png)
+
+**Caption:** dbt model graph and run preview.
+
+**Description:** dbt CLI/desktop screenshot showing model graph (staging → core models) and a small preview of the `core_passenger_revenue` results: column names, example values, and model run summary. This demonstrates model dependencies and a sample result.
+
+---
+
+### Figure 5 — Raw table preview in Postgres / ingestion verification
+
+![Raw table preview in Postgres](./image-4.png)
+
+**Caption:** Raw table preview in Postgres / ingestion verification.
+
+**Description:** A table preview (from pgAdmin/psql or other tool) showing `yellow_taxi_trips_automated` with sample rows and key columns (pickup_datetime, dropoff_datetime, passenger_count, fare_amount, tip_amount, total_amount). Use this to verify ingestion and column types.
 
 ## Quick run notes
 - Ingest:
